@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Hub</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="AI Hub">
+<meta name="theme-color" content="#1f6f5c">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sidebar cố định bên trái, vùng làm việc bên phải; chat dạng 3 cột so sánh */
+:root{
+  --bg:#f5f6f3; --panel:#ffffff; --fg:#1b1f1a; --muted:#6b7266; --line:#dde1d8;
+  --accent:#1f6f5c; --accent-fg:#ffffff; --soft:#e8f1ec;
+  --claude:#c96a3b; --openai:#2a8a6b; --gemini:#3b6fd6;
+  --ok:#2b8a4e; --warn:#b7791f; --bad:#c23b3b;
+  --font:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r:10px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141714; --panel:#1d211d; --fg:#e8ebe4; --muted:#9aa294; --line:#2d332c;
+  --accent:#4fb393; --accent-fg:#0f1511; --soft:#1f2d27; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#141714; --panel:#1d211d; --fg:#e8ebe4; --muted:#9aa294; --line:#2d332c;
+  --accent:#4fb393; --accent-fg:#0f1511; --soft:#1f2d27; color-scheme:dark; }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--font);display:flex;min-width:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600}
+h2{font-size:18px} h3{font-size:14px}
+.muted{color:var(--muted)} .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.small{font-size:12px}
+a{color:var(--accent)}
+
+/* Sidebar */
+.side{width:250px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;padding-block:14px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:14px;gap:14px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .logo{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-fg);display:grid;place-items:center;font-weight:700;font-family:var(--mono)}
+.brand h1{font-size:16px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;padding:8px 10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+.nav button:hover{background:var(--soft)}
+.nav button.on{background:var(--soft);color:var(--accent);font-weight:600}
+.nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.launch{display:flex;flex-direction:column;gap:6px}
+.launch a{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--fg)}
+.launch a:hover{background:var(--soft)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dot.anthropic{background:var(--claude)} .dot.openai{background:var(--openai)} .dot.gemini{background:var(--gemini)}
+.convos{display:flex;flex-direction:column;gap:2px;min-height:0}
+.convos button{all:unset;cursor:pointer;padding:6px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.convos button.on,.convos button:hover{background:var(--soft)}
+.side .foot{margin-top:auto}
+
+/* Main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;height:100%}
+.view{display:none;flex:1;min-height:0;flex-direction:column}
+.view.on{display:flex}
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-block:10px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+.scroll{flex:1;min-height:0;overflow:auto;padding-block:16px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.page{max-width:1100px;display:flex;flex-direction:column;gap:18px}
+
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn.primary:disabled{opacity:.5;cursor:default}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:4px 8px;font-size:12px}
+
+/* Provider chips */
+.chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 8px;background:var(--panel)}
+.chip input[type=checkbox]{accent-color:var(--accent);margin:0}
+.chip select{border:none;background:transparent;font-family:var(--mono);font-size:12px;max-width:190px}
+.chip.off{opacity:.55}
+.chip .nokey{font-size:11px;color:var(--warn)}
+
+/* Chat */
+.turn{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+.q{align-self:flex-end;max-width:min(720px,90%);background:var(--accent);color:var(--accent-fg);padding:10px 14px;border-radius:14px 14px 4px 14px;white-space:pre-wrap;word-break:break-word}
+.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.ans{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.ans .head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.ans .head b{font-weight:600}
+.ans .head .model{font-family:var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ans .body{padding:12px;white-space:pre-wrap;word-break:break-word;flex:1;line-height:1.6}
+.ans .body.err{color:var(--bad)}
+.ans .meta{display:flex;flex-wrap:wrap;gap:10px;padding:6px 12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);font-family:var(--mono)}
+.ans .act{margin-left:auto;display:flex;gap:4px}
+.cursor::after{content:"▍";animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.cursor::after{animation:none}}
+.empty{display:grid;place-items:center;height:100%;text-align:center;color:var(--muted);padding:30px}
+.empty .box{max-width:460px;display:flex;flex-direction:column;gap:8px}
+
+.composer{border-top:1px solid var(--line);background:var(--panel);padding-block:10px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:8px}
+.composer textarea{width:100%;min-height:72px;max-height:240px;resize:vertical;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--bg)}
+.composer .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.composer .row .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* Cards, tables, forms */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:4px;border-top:3px solid var(--line)}
+.tile.anthropic{border-top-color:var(--claude)} .tile.openai{border-top-color:var(--openai)} .tile.gemini{border-top-color:var(--gemini)}
+.tile .big{font-size:22px;font-weight:600;font-family:var(--mono)}
+.tile .sub{display:flex;gap:12px;font-size:12px;color:var(--muted);font-family:var(--mono);flex-wrap:wrap}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:600}
+.field input,.field select,.field textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg);width:100%}
+.field .keyrow{display:flex;gap:6px}
+.field .keyrow input{font-family:var(--mono);font-size:12px}
+.price td input{width:90px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--bg);font-family:var(--mono);font-size:12px}
+.price td input.model{width:220px}
+.bars{display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:8px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.bar .stack{width:100%;display:flex;flex-direction:column-reverse;height:100px;justify-content:flex-start}
+.bar .seg{width:100%}
+.bar .seg.anthropic{background:var(--claude)} .bar .seg.openai{background:var(--openai)} .bar .seg.gemini{background:var(--gemini)}
+.bar .d{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.prompts{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.prompt{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.prompt pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12px/1.5 var(--font);color:var(--muted);max-height:120px;overflow:auto}
+.prompt .acts{display:flex;gap:6px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.show{opacity:1}
+.note{background:var(--soft);border-radius:8px;padding:10px 12px;font-size:13px}
+.menubtn{display:none}
+
+@media (max-width:760px){
+  body{flex-direction:column}
+  .side{width:100%;border-right:none;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;padding-right:max(14px,env(safe-area-inset-right,0px))}
+  .side .convos,.side .launch,.side .foot,.side .label{display:none}
+  .nav{flex-direction:row;flex-wrap:wrap}
+  .main{height:auto;flex:1}
+}
+</style>
+</head>
+<body>
+
+<aside class="side">
+  <div class="brand"><div class="logo">AI</div><div><h1>AI Hub</h1><div class="small muted">Claude · ChatGPT · Gemini</div></div></div>
+  <nav class="nav" id="nav">
+    <button data-view="chat" class="on">Chat so sánh</button>
+    <button data-view="task">Tác vụ song song</button>
+    <button data-view="prompts">Thư viện prompt</button>
+    <button data-view="usage">Chi phí &amp; usage</button>
+    <button data-view="settings">Cài đặt</button>
+  </nav>
+  <div class="label">Mở nhanh web app</div>
+  <div class="launch">
+    <a href="https://claude.ai/new" target="_blank" rel="noopener"><span class="dot anthropic"></span>claude.ai</a>
+    <a href="https://chatgpt.com/" target="_blank" rel="noopener"><span class="dot openai"></span>chatgpt.com</a>
+    <a href="https://gemini.google.com/app" target="_blank" rel="noopener"><span class="dot gemini"></span>gemini.google.com</a>
+  </div>
+  <div class="label">Hội thoại</div>
+  <div class="convos" id="convos"></div>
+  <div class="foot small muted">Dữ liệu và API key chỉ lưu trong trình duyệt này.</div>
+</aside>
+
+<main class="main">
+
+  <!-- CHAT -->
+  <section class="view on" id="view-chat">
+    <div class="topbar" id="chips"></div>
+    <div class="scroll" id="chatScroll">
+      <div id="chatBody"></div>
+    </div>
+    <div class="composer">
+      <textarea id="input" placeholder="Nhập câu hỏi, Ctrl+Enter để gửi tới tất cả AI đang bật…"></textarea>
+      <div class="row">
+        <button class="btn" id="btnNew">Hội thoại mới</button>
+        <button class="btn" id="btnPickPrompt">Chèn prompt mẫu</button>
+        <span class="small muted" id="hint"></span>
+        <div class="right">
+          <button class="btn primary" id="btnSend">Gửi</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TASK -->
+  <section class="view" id="view-task">
+    <div class="topbar"><h2>Tác vụ song song</h2><span class="muted small">Một AI điều phối (ưu tiên Claude → ChatGPT → Gemini) chia việc theo thế mạnh, 3 AI chạy cùng lúc, rồi gộp kết quả.</span></div>
+    <div class="scroll"><div class="page">
+      <div class="card">
+        <div class="field"><label for="taskInput">Mô tả tác vụ</label><textarea id="taskInput" rows="4" placeholder="VD: Lập đề xuất bố trí mặt bằng nhà máy 5.000 m² sản xuất linh kiện điện tử: phân tích luồng vật tư, đề xuất 2 phương án layout, ước tính chi phí xây dựng và viết tóm tắt cho ban giám đốc."></textarea></div>
+        <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn primary" id="btnPlan">1. Lập kế hoạch chia việc</button>
+          <span class="small muted" id="taskStatus"></span>
+          <span class="small muted" style="margin-left:auto">Điều phối: <b id="leadName">—</b></span>
+        </div>
+      </div>
+      <div class="card" id="planCard" hidden>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>Kế hoạch chia việc</h3><button class="btn primary" id="btnRun">2. Chạy song song</button></div>
+        <p class="small muted" style="margin:0" id="planNote"></p>
+        <div class="answers" id="planList"></div>
+      </div>
+      <div class="card" id="mergeCard" hidden>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>Kết quả gộp</h3><div style="display:flex;gap:6px"><button class="btn sm" id="btnCopyMerge">Sao chép</button><button class="btn sm" id="btnSaveMergePrompt">Lưu tác vụ thành prompt</button></div></div>
+        <div class="ans"><div class="head"><span class="dot" id="mergeDot"></span><b id="mergeLead">—</b><span class="model" id="mergeModel"></span></div><div class="body" id="mergeBody"></div><div class="meta" id="mergeMeta"></div></div>
+      </div>
+      <div class="card" id="taskHistory">
+        <h3>Tác vụ đã chạy</h3>
+        <div class="tablewrap"><table><thead><tr><th>Thời gian</th><th>Tác vụ</th><th class="num">Việc con</th><th class="num">Chi phí</th><th></th></tr></thead><tbody id="taskRows"></tbody></table></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- PROMPTS -->
+  <section class="view" id="view-prompts">
+    <div class="topbar"><h2>Thư viện prompt</h2><span class="muted small">Lưu prompt dùng lại nhiều lần, bấm "Dùng" để chèn vào ô chat.</span></div>
+    <div class="scroll"><div class="page">
+      <div class="card">
+        <h3 id="promptFormTitle">Thêm prompt</h3>
+        <div class="field"><label for="pTitle">Tên</label><input id="pTitle" placeholder="VD: Tóm tắt báo cáo kỹ thuật"></div>
+        <div class="field"><label for="pText">Nội dung</label><textarea id="pText" rows="4" placeholder="Nội dung prompt…"></textarea></div>
+        <div class="row" style="display:flex;gap:8px"><button class="btn primary" id="btnSavePrompt">Lưu prompt</button><button class="btn" id="btnCancelPrompt" hidden>Hủy sửa</button></div>
+      </div>
+      <div class="prompts" id="promptList"></div>
+    </div></div>
+  </section>
+
+  <!-- USAGE -->
+  <section class="view" id="view-usage">
+    <div class="topbar"><h2>Chi phí &amp; usage</h2><span class="muted small">Tính từ số token API trả về × bảng giá trong Cài đặt (ước tính, USD).</span>
+      <div style="margin-left:auto;display:flex;gap:8px"><button class="btn sm" id="btnExportUsage">Xuất CSV</button><button class="btn sm danger" id="btnClearUsage">Xóa log</button></div></div>
+    <div class="scroll"><div class="page">
+      <div class="grid" id="usageTiles"></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h3>Chi phí 14 ngày gần nhất</h3>
+          <div class="legend"><span><i class="dot anthropic"></i>Claude</span><span><i class="dot openai"></i>ChatGPT</span><span><i class="dot gemini"></i>Gemini</span></div></div>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="card"><h3>Lịch sử gọi API (50 gần nhất)</h3>
+        <div class="tablewrap"><table><thead><tr><th>Thời gian</th><th>AI</th><th>Model</th><th class="num">Token vào</th><th class="num">Token ra</th><th class="num">Chi phí</th></tr></thead><tbody id="usageRows"></tbody></table></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="topbar"><h2>Cài đặt</h2></div>
+    <div class="scroll"><div class="page">
+      <div class="note">API key được lưu trong localStorage của trình duyệt trên máy này và gửi thẳng tới máy chủ của từng hãng, không qua máy chủ trung gian nào. Không chia sẻ file này sau khi đã lưu key.</div>
+      <div class="grid" id="keyCards"></div>
+      <div class="card">
+        <h3>Bảng giá (USD / 1 triệu token)</h3>
+        <p class="small muted" style="margin:0">Dùng để ước tính chi phí. Hãy đối chiếu với bảng giá hiện hành của từng hãng và sửa lại nếu khác. Model không có trong bảng sẽ tính 0.</p>
+        <div class="tablewrap"><table class="price"><thead><tr><th>Model</th><th>Vào</th><th>Ra</th><th></th></tr></thead><tbody id="priceRows"></tbody></table></div>
+        <div><button class="btn sm" id="btnAddPrice">+ Thêm model</button></div>
+      </div>
+      <div class="card">
+        <h3>Sao lưu</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btnExport">Xuất toàn bộ dữ liệu (JSON)</button>
+          <label class="btn">Nhập từ file JSON <input type="file" id="importFile" accept="application/json" hidden></label>
+          <button class="btn danger" id="btnWipe">Xóa toàn bộ dữ liệu</button>
+        </div>
+        <p class="small muted" style="margin:0">File JSON xuất ra có chứa API key, hội thoại và log usage.</p>
+      </div>
+    </div></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Dữ liệu ===================== */
+const PROVIDERS = {
+  anthropic:{ name:'Claude',  vendor:'Anthropic', models:['claude-sonnet-4-5','claude-opus-4-1','claude-haiku-4-5'], keyHint:'sk-ant-…', keyUrl:'https://console.anthropic.com/settings/keys' },
+  openai:   { name:'ChatGPT', vendor:'OpenAI',    models:['gpt-5','gpt-5-mini','gpt-4.1','gpt-4o'],                 keyHint:'sk-…',     keyUrl:'https://platform.openai.com/api-keys' },
+  gemini:   { name:'Gemini',  vendor:'Google',    models:['gemini-2.5-pro','gemini-2.5-flash','gemini-2.0-flash'],  keyHint:'AIza…',    keyUrl:'https://aistudio.google.com/apikey' },
+};
+const ORDER = ['anthropic','openai','gemini'];
+const DEFAULT_PRICING = {
+  'claude-sonnet-4-5':[3,15], 'claude-opus-4-1':[15,75], 'claude-haiku-4-5':[1,5],
+  'gpt-5':[1.25,10], 'gpt-5-mini':[0.25,2], 'gpt-4.1':[2,8], 'gpt-4o':[2.5,10],
+  'gemini-2.5-pro':[1.25,10], 'gemini-2.5-flash':[0.30,2.5], 'gemini-2.0-flash':[0.10,0.40],
+};
+const SEED_PROMPTS = [
+  {id:'p1', title:'Ví dụ: So sánh phương án bố trí nhà xưởng', text:'Bạn là kỹ sư thiết kế nhà máy. So sánh ưu nhược điểm của bố trí dây chuyền theo quy trình (process layout) và theo sản phẩm (product layout) cho một xưởng lắp ráp điện tử 2.000 m². Trình bày thành bảng, kết luận nên chọn phương án nào và vì sao.'},
+  {id:'p2', title:'Ví dụ: Tóm tắt tài liệu kỹ thuật', text:'Tóm tắt tài liệu dưới đây thành 5 ý chính, mỗi ý không quá 2 câu, bằng tiếng Việt. Ghi rõ các con số và tiêu chuẩn được nhắc tới.\n\n[dán tài liệu vào đây]'},
+  {id:'p3', title:'Ví dụ: Dịch Việt → Anh (kỹ thuật)', text:'Dịch đoạn sau sang tiếng Anh kỹ thuật, giữ nguyên thuật ngữ chuyên ngành và đơn vị đo:\n\n[dán văn bản]'},
+];
+const KEY = 'aihub.v1';
+let S = load();
+
+function load(){
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){}
+  s = s || {};
+  s.keys = s.keys || {anthropic:'',openai:'',gemini:''};
+  s.models = s.models || {anthropic:PROVIDERS.anthropic.models[0], openai:PROVIDERS.openai.models[0], gemini:PROVIDERS.gemini.models[0]};
+  s.enabled = s.enabled || {anthropic:true,openai:true,gemini:true};
+  s.pricing = s.pricing || JSON.parse(JSON.stringify(DEFAULT_PRICING));
+  s.prompts = s.prompts || SEED_PROMPTS.slice();
+  s.convos = s.convos || [];
+  s.usage = s.usage || [];
+  s.tasks = s.tasks || [];
+  s.current = s.current || null;
+  s.view = s.view || 'chat';
+  return s;
+}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){ toast('Không lưu được vào trình duyệt'); } }
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const fmtUSD = n => '$' + (n >= 0.01 ? n.toFixed(3) : n.toFixed(5));
+const fmtInt = n => (n||0).toLocaleString('vi-VN');
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
+function price(model, inTok, outTok){ const p = S.pricing[model]; if(!p) return 0; return (inTok*p[0] + outTok*p[1]) / 1e6; }
+
+/* ===================== Điều hướng ===================== */
+function showView(v){
+  S.view = v; save();
+  document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === 'view-' + v));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  if(v==='usage') renderUsage(); if(v==='prompts') renderPrompts(); if(v==='settings') renderSettings();
+  if(v==='task'){ renderTaskHistory(); const l = leadProvider(); $('#leadName').textContent = l ? PROVIDERS[l].name : 'chưa có AI sẵn sàng'; }
+}
+$('#nav').addEventListener('click', e => { const b = e.target.closest('button'); if(b) showView(b.dataset.view); });
+
+/* ===================== Chat ===================== */
+function currentConvo(){ return S.convos.find(c => c.id === S.current) || null; }
+function newConvo(){ const c = {id:uid(), title:'Hội thoại mới', created:Date.now(), turns:[]}; S.convos.unshift(c); S.current = c.id; save(); renderConvos(); renderChat(); }
+function renderConvos(){
+  const el = $('#convos');
+  el.innerHTML = S.convos.map(c => `<button data-id="${c.id}" class="${c.id===S.current?'on':''}" title="${esc(c.title)}">${esc(c.title)}</button>`).join('') || '<div class="small muted" style="padding:6px 10px">Chưa có hội thoại</div>';
+}
+$('#convos').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; S.current = b.dataset.id; save(); renderConvos(); renderChat(); });
+$('#btnNew').addEventListener('click', newConvo);
+
+function renderChips(){
+  $('#chips').innerHTML = ORDER.map(p => {
+    const P = PROVIDERS[p]; const hasKey = !!S.keys[p];
+    const opts = [...new Set([S.models[p], ...P.models])].map(m => `<option ${m===S.models[p]?'selected':''}>${esc(m)}</option>`).join('');
+    return `<label class="chip ${S.enabled[p]?'':'off'}"><input type="checkbox" data-p="${p}" ${S.enabled[p]?'checked':''}><span class="dot ${p}"></span><b>${P.name}</b><select data-p="${p}">${opts}</select>${hasKey?'':'<span class="nokey">chưa có key</span>'}</label>`;
+  }).join('') + `<span class="muted small" style="margin-left:auto">Ctrl+Enter để gửi</span>`;
+  const n = ORDER.filter(p => S.enabled[p]).length;
+  $('#btnSend').textContent = n ? `Gửi tới ${n} AI` : 'Chọn ít nhất 1 AI';
+  $('#btnSend').disabled = !n;
+}
+$('#chips').addEventListener('change', e => {
+  const p = e.target.dataset.p; if(!p) return;
+  if(e.target.type === 'checkbox') S.enabled[p] = e.target.checked; else S.models[p] = e.target.value;
+  save(); renderChips();
+});
+
+function renderChat(){
+  const c = currentConvo(); const body = $('#chatBody');
+  if(!c || !c.turns.length){
+    body.innerHTML = `<div class="empty"><div class="box"><h2>Một câu hỏi, ba câu trả lời</h2><p>Chọn AI ở thanh trên, nhập câu hỏi bên dưới. Mỗi AI nhớ lịch sử riêng của hội thoại này, nên bạn có thể hỏi tiếp.</p>${ORDER.some(p=>S.keys[p])?'':'<p>Chưa có API key nào. Vào <a href="#" data-go="settings">Cài đặt</a> để nhập.</p>'}</div></div>`;
+    return;
+  }
+  body.innerHTML = c.turns.map((t, i) => `
+    <div class="turn" data-i="${i}">
+      <div class="q">${esc(t.q)}</div>
+      <div class="answers">${Object.keys(t.answers).map(p => ansHTML(p, t.answers[p], i)).join('')}</div>
+    </div>`).join('');
+  $('#chatScroll').scrollTop = $('#chatScroll').scrollHeight;
+}
+function ansHTML(p, a, i){
+  const P = PROVIDERS[p];
+  const meta = a.done && !a.error ? `<span>${fmtInt(a.inTok)} vào</span><span>${fmtInt(a.outTok)} ra</span><span>${fmtUSD(a.cost||0)}</span><span>${((a.ms||0)/1000).toFixed(1)}s</span>` : (a.error ? '' : '<span>đang trả lời…</span>');
+  return `<div class="ans" id="ans-${i}-${p}">
+    <div class="head"><span class="dot ${p}"></span><b>${P.name}</b><span class="model">${esc(a.model)}</span>
+      <span class="act"><button class="btn sm" data-copy="${i}:${p}" title="Sao chép">Sao chép</button></span></div>
+    <div class="body ${a.error?'err':''} ${a.done?'':'cursor'}">${esc(a.error || a.text || '')}</div>
+    <div class="meta">${meta}</div></div>`;
+}
+document.body.addEventListener('click', e => {
+  const go = e.target.closest('[data-go]'); if(go){ e.preventDefault(); showView(go.dataset.go); return; }
+  const cp = e.target.closest('[data-copy]'); if(cp){
+    const [i,p] = cp.dataset.copy.split(':'); const a = currentConvo().turns[i].answers[p];
+    navigator.clipboard.writeText(a.text||'').then(()=>toast('Đã sao chép')).catch(()=>toast('Không sao chép được'));
+  }
+});
+
+function historyFor(c, p){
+  const msgs = [];
+  for(const t of c.turns){ const a = t.answers[p]; if(a && a.done && !a.error && a.text){ msgs.push({role:'user',content:t.q}); msgs.push({role:'assistant',content:a.text}); } }
+  return msgs;
+}
+
+async function send(){
+  const q = $('#input').value.trim(); if(!q) return;
+  const ps = ORDER.filter(p => S.enabled[p]); if(!ps.length) return;
+  const missing = ps.filter(p => !S.keys[p]);
+  if(missing.length){ toast('Chưa có API key cho: ' + missing.map(p=>PROVIDERS[p].name).join(', ')); }
+  let c = currentConvo(); if(!c){ newConvo(); c = currentConvo(); }
+  if(c.turns.length === 0) c.title = q.slice(0, 48);
+  const turn = {q, answers:{}};
+  for(const p of ps) turn.answers[p] = {model:S.models[p], text:'', done:false, error: S.keys[p] ? null : 'Chưa nhập API key. Vào Cài đặt để thêm.', inTok:0, outTok:0, cost:0, ms:0};
+  for(const p of ps) if(!S.keys[p]) turn.answers[p].done = true;
+  c.turns.push(turn); const idx = c.turns.length - 1;
+  $('#input').value = ''; save(); renderConvos(); renderChat();
+  $('#btnSend').disabled = true;
+  await Promise.all(ps.filter(p => S.keys[p]).map(p => runProvider(p, c, turn, idx)));
+  $('#btnSend').disabled = false; renderChips();
+}
+async function runProvider(p, c, turn, idx){
+  const a = turn.answers[p]; const t0 = performance.now();
+  const msgs = [...historyFor(c, p), {role:'user', content:turn.q}];
+  const bodyEl = () => document.querySelector(`#ans-${idx}-${p} .body`);
+  let lastPaint = 0;
+  const onDelta = () => { const now = performance.now(); if(now - lastPaint > 60){ lastPaint = now; const el = bodyEl(); if(el){ el.textContent = a.text; $('#chatScroll').scrollTop = $('#chatScroll').scrollHeight; } } };
+  try {
+    const usage = await CALL[p](S.keys[p], a.model, msgs, d => { a.text += d; onDelta(); });
+    a.inTok = usage.inTok || 0; a.outTok = usage.outTok || 0; a.cost = price(a.model, a.inTok, a.outTok);
+    S.usage.push({t:Date.now(), p, model:a.model, inTok:a.inTok, outTok:a.outTok, cost:a.cost});
+  } catch(err){ a.error = (err && err.message) || String(err); }
+  a.ms = performance.now() - t0; a.done = true; save();
+  const el = document.querySelector(`#ans-${idx}-${p}`); if(el) el.outerHTML = ansHTML(p, a, idx);
+}
+$('#btnSend').addEventListener('click', send);
+$('#input').addEventListener('keydown', e => { if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+
+/* ===================== Gọi API (stream SSE) ===================== */
+async function readSSE(res, onEvent){
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '';
+  while(true){
+    const {done, value} = await reader.read(); if(done) break;
+    buf += dec.decode(value, {stream:true});
+    let i; while((i = buf.indexOf('\n\n')) >= 0){
+      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      for(const line of chunk.split('\n')){ if(line.startsWith('data:')){ const d = line.slice(5).trim(); if(d && d !== '[DONE]'){ try { onEvent(JSON.parse(d)); } catch(e){} } } }
+    }
+  }
+}
+async function httpError(res){
+  let msg = `HTTP ${res.status}`; try { const j = await res.json(); msg += ': ' + (j.error?.message || j.message || JSON.stringify(j)).slice(0, 300); } catch(e){}
+  if(res.status === 401 || res.status === 403) msg += ' (kiểm tra lại API key)';
+  if(res.status === 429) msg += ' (vượt hạn mức, thử lại sau)';
+  return new Error(msg);
+}
+const CALL = {
+  async anthropic(key, model, msgs, onDelta){
+    const res = await fetch('https://api.anthropic.com/v1/messages', { method:'POST',
+      headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({model, max_tokens:4096, stream:true, messages:msgs}) });
+    if(!res.ok) throw await httpError(res);
+    const u = {inTok:0, outTok:0};
+    await readSSE(res, ev => {
+      if(ev.type === 'message_start') u.inTok = ev.message?.usage?.input_tokens || 0;
+      else if(ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') onDelta(ev.delta.text);
+      else if(ev.type === 'message_delta' && ev.usage) u.outTok = ev.usage.output_tokens || u.outTok;
+      else if(ev.type === 'error') throw new Error(ev.error?.message || 'Lỗi stream');
+    });
+    return u;
+  },
+  async openai(key, model, msgs, onDelta){
+    const res = await fetch('https://api.openai.com/v1/chat/completions', { method:'POST',
+      headers:{'content-type':'application/json','authorization':'Bearer ' + key},
+      body: JSON.stringify({model, stream:true, stream_options:{include_usage:true}, messages:msgs}) });
+    if(!res.ok) throw await httpError(res);
+    const u = {inTok:0, outTok:0};
+    await readSSE(res, ev => {
+      const d = ev.choices?.[0]?.delta?.content; if(d) onDelta(d);
+      if(ev.usage){ u.inTok = ev.usage.prompt_tokens || 0; u.outTok = ev.usage.completion_tokens || 0; }
+    });
+    return u;
+  },
+  async gemini(key, model, msgs, onDelta){
+    const contents = msgs.map(m => ({role: m.role === 'assistant' ? 'model' : 'user', parts:[{text:m.content}]}));
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, { method:'POST',
+      headers:{'content-type':'application/json','x-goog-api-key':key},
+      body: JSON.stringify({contents}) });
+    if(!res.ok) throw await httpError(res);
+    const u = {inTok:0, outTok:0};
+    await readSSE(res, ev => {
+      const parts = ev.candidates?.[0]?.content?.parts || []; for(const pt of parts) if(pt.text) onDelta(pt.text);
+      if(ev.usageMetadata){ u.inTok = ev.usageMetadata.promptTokenCount || u.inTok; u.outTok = ev.usageMetadata.candidatesTokenCount || u.outTok; }
+      if(ev.promptFeedback?.blockReason) throw new Error('Gemini chặn yêu cầu: ' + ev.promptFeedback.blockReason);
+    });
+    return u;
+  },
+};
+
+/* ===================== Tác vụ song song ===================== */
+const STRENGTHS = {
+  anthropic:'Claude: suy luận sâu, phân tích tài liệu dài, viết văn bản chất lượng cao, lập trình, tổng hợp và ra quyết định. Ưu tiên số 1.',
+  openai:'ChatGPT: kiến thức tổng quát rộng, trả lời có cấu trúc, lập trình, brainstorm ý tưởng, tính toán ước lượng. Ưu tiên số 2.',
+  gemini:'Gemini: đa ngôn ngữ, xử lý ngữ cảnh rất dài, tra cứu kiến thức phổ thông, tốc độ nhanh và rẻ, tóm tắt. Ưu tiên số 3.',
+};
+let TASK = null; // tác vụ đang chạy
+function available(){ return ORDER.filter(p => S.enabled[p] && S.keys[p]); }
+function leadProvider(){ return available()[0] || null; } // ORDER đã sắp theo ưu tiên Claude → ChatGPT → Gemini
+async function callOnce(p, prompt, onDelta){ let text=''; const u = await CALL[p](S.keys[p], S.models[p], [{role:'user',content:prompt}], d => { text += d; if(onDelta) onDelta(text); }); const cost = price(S.models[p], u.inTok, u.outTok); S.usage.push({t:Date.now(), p, model:S.models[p], inTok:u.inTok, outTok:u.outTok, cost}); save(); return {text, cost, ...u}; }
+function parseJSON(t){ const m = t.match(/```(?:json)?\s*([\s\S]*?)```/); const s = (m ? m[1] : t).trim(); const a = s.indexOf('{'), b = s.lastIndexOf('}'); return JSON.parse(s.slice(a, b+1)); }
+function setStatus(m){ $('#taskStatus').textContent = m; }
+
+$('#btnPlan').addEventListener('click', async () => {
+  const goal = $('#taskInput').value.trim(); if(!goal){ toast('Hãy mô tả tác vụ'); return; }
+  const lead = leadProvider(); if(!lead){ toast('Cần ít nhất 1 AI đang bật và có API key'); return; }
+  const avail = available();
+  TASK = {id:uid(), t:Date.now(), goal, lead, subtasks:[], merged:'', cost:0};
+  $('#planCard').hidden = true; $('#mergeCard').hidden = true; $('#btnPlan').disabled = true; $('#btnRun').disabled = false;
+  setStatus(`${PROVIDERS[lead].name} đang lập kế hoạch…`);
+  const prompt = `Bạn là điều phối viên của một nhóm 3 trợ lý AI. Hãy chia TÁC VỤ dưới đây thành 2–6 việc con độc lập có thể chạy SONG SONG, giao mỗi việc cho trợ lý phù hợp nhất theo thế mạnh. Chỉ được giao cho các trợ lý đang sẵn sàng: ${avail.join(', ')}. Khi hai trợ lý đều phù hợp, ưu tiên theo thứ tự: anthropic > openai > gemini, nhưng vẫn phân bổ để các trợ lý chạy đồng thời thay vì dồn hết vào một trợ lý.
+
+Thế mạnh:
+${avail.map(p => '- ' + p + ' — ' + STRENGTHS[p]).join('\n')}
+
+TÁC VỤ:
+${goal}
+
+Trả về DUY NHẤT một JSON (không giải thích thêm) theo mẫu:
+{"subtasks":[{"title":"tên ngắn","assignee":"anthropic|openai|gemini","reason":"vì sao giao cho trợ lý này (1 câu)","prompt":"chỉ dẫn đầy đủ, tự chứa, bằng tiếng Việt, để trợ lý đó làm việc con này mà không cần ngữ cảnh khác"}]}`;
+  try {
+    const r = await callOnce(lead, prompt); TASK.cost += r.cost;
+    const j = parseJSON(r.text);
+    TASK.subtasks = (j.subtasks || []).map(s => ({id:uid(), title:s.title||'Việc con', assignee: avail.includes(s.assignee) ? s.assignee : lead, reason:s.reason||'', prompt:s.prompt||'', text:'', done:false, error:null, cost:0}));
+    if(!TASK.subtasks.length) throw new Error('Không nhận được kế hoạch hợp lệ');
+    renderPlan(); setStatus('Xem lại phân công (có thể đổi AI cho từng việc), rồi bấm Chạy song song.');
+  } catch(err){ setStatus('Lỗi lập kế hoạch: ' + err.message); }
+  $('#btnPlan').disabled = false;
+});
+function renderPlan(){
+  $('#leadName').textContent = PROVIDERS[TASK.lead].name;
+  $('#planCard').hidden = false;
+  const counts = {}; for(const s of TASK.subtasks) counts[s.assignee] = (counts[s.assignee]||0)+1;
+  $('#planNote').textContent = ORDER.filter(p=>counts[p]).map(p => `${PROVIDERS[p].name}: ${counts[p]} việc`).join(' · ');
+  $('#planList').innerHTML = TASK.subtasks.map((s, i) => `<div class="ans" id="sub-${s.id}">
+    <div class="head"><span class="dot ${s.assignee}"></span><b>${i+1}. ${esc(s.title)}</b>
+      <select data-assign="${s.id}" style="margin-left:auto;font-size:12px;font-family:var(--mono);border:1px solid var(--line);border-radius:6px;background:var(--bg)" ${s.done||TASK.running?'disabled':''}>${available().map(p=>`<option value="${p}" ${p===s.assignee?'selected':''}>${PROVIDERS[p].name}</option>`).join('')}</select></div>
+    <div class="body" style="font-size:13px">${s.done || s.text ? esc(s.error || s.text) : `<span class="muted">${esc(s.reason)}</span>\n\n<details><summary class="small muted">Chỉ dẫn gửi đi</summary><div class="small" style="white-space:pre-wrap">${esc(s.prompt)}</div></details>`}</div>
+    <div class="meta" id="submeta-${s.id}">${s.done ? (s.error ? '<span style="color:var(--bad)">lỗi</span>' : `<span>${fmtUSD(s.cost)}</span><span>xong</span>`) : (TASK.running ? '<span>đang chạy…</span>' : '')}</div></div>`).join('');
+}
+$('#planList').addEventListener('change', e => { const id = e.target.dataset.assign; if(!id) return; const s = TASK.subtasks.find(x=>x.id===id); s.assignee = e.target.value; renderPlan(); });
+
+$('#btnRun').addEventListener('click', async () => {
+  if(!TASK || TASK.running) return; TASK.running = true; $('#btnRun').disabled = true; renderPlan();
+  setStatus(`Đang chạy ${TASK.subtasks.length} việc song song…`);
+  await Promise.all(TASK.subtasks.map(async s => {
+    const body = () => document.querySelector(`#sub-${s.id} .body`); let last = 0;
+    try { const r = await callOnce(s.assignee, s.prompt, t => { s.text = t; const now = performance.now(); if(now-last>80){ last=now; const b = body(); if(b) b.textContent = t; } }); s.text = r.text; s.cost = r.cost; TASK.cost += r.cost; }
+    catch(err){ s.error = err.message; }
+    s.done = true; const b = body(); if(b) b.textContent = s.error || s.text;
+    const m = document.getElementById('submeta-' + s.id); if(m) m.innerHTML = s.error ? '<span style="color:var(--bad)">lỗi: ' + esc(s.error) + '</span>' : `<span>${PROVIDERS[s.assignee].name}</span><span>${fmtUSD(s.cost)}</span><span>xong</span>`;
+  }));
+  // Gộp
+  const lead = leadProvider() || TASK.lead;
+  setStatus(`${PROVIDERS[lead].name} đang gộp kết quả…`);
+  $('#mergeCard').hidden = false; $('#mergeDot').className = 'dot ' + lead; $('#mergeLead').textContent = PROVIDERS[lead].name; $('#mergeModel').textContent = S.models[lead]; $('#mergeBody').textContent = ''; $('#mergeBody').classList.add('cursor');
+  const okSubs = TASK.subtasks.filter(s => !s.error);
+  const mergePrompt = `Bạn là điều phối viên. Dưới đây là TÁC VỤ gốc và kết quả các việc con do các trợ lý khác nhau thực hiện song song. Hãy tổng hợp thành MỘT câu trả lời hoàn chỉnh, mạch lạc, bằng tiếng Việt, loại bỏ trùng lặp, giải quyết mâu thuẫn nếu có (ghi rõ chỗ nào các trợ lý bất đồng), và bổ sung phần còn thiếu nếu việc con nào bị lỗi.
+
+TÁC VỤ GỐC:
+${TASK.goal}
+
+${okSubs.map((s,i) => `=== Việc con ${i+1}: ${s.title} (do ${PROVIDERS[s.assignee].name}) ===\n${s.text}`).join('\n\n')}
+${TASK.subtasks.filter(s=>s.error).map(s => `=== Việc con bị lỗi: ${s.title} ===`).join('\n')}`;
+  try { const r = await callOnce(lead, mergePrompt, t => { $('#mergeBody').textContent = t; }); TASK.merged = r.text; TASK.cost += r.cost;
+    $('#mergeMeta').innerHTML = `<span>${fmtInt(r.inTok)} vào</span><span>${fmtInt(r.outTok)} ra</span><span>${fmtUSD(r.cost)}</span><span>tổng tác vụ ${fmtUSD(TASK.cost)}</span>`;
+    setStatus(`Hoàn tất. Tổng chi phí ước tính ${fmtUSD(TASK.cost)}.`);
+  } catch(err){ $('#mergeBody').textContent = 'Lỗi gộp: ' + err.message; setStatus('Lỗi khi gộp kết quả'); }
+  $('#mergeBody').classList.remove('cursor');
+  TASK.running = false; $('#btnRun').disabled = false;
+  S.tasks.unshift({id:TASK.id, t:TASK.t, goal:TASK.goal, lead, cost:TASK.cost, subtasks:TASK.subtasks.map(s=>({title:s.title, assignee:s.assignee, text:s.text, error:s.error, cost:s.cost})), merged:TASK.merged});
+  S.tasks = S.tasks.slice(0, 30); save(); renderTaskHistory();
+});
+$('#btnCopyMerge').addEventListener('click', () => navigator.clipboard.writeText($('#mergeBody').textContent).then(()=>toast('Đã sao chép')).catch(()=>toast('Không sao chép được')));
+$('#btnSaveMergePrompt').addEventListener('click', () => { if(!TASK) return; S.prompts.unshift({id:uid(), title:'Tác vụ: ' + TASK.goal.slice(0,40), text:TASK.goal}); save(); toast('Đã lưu vào thư viện prompt'); });
+function renderTaskHistory(){
+  $('#taskRows').innerHTML = S.tasks.map(t => `<tr><td class="mono small">${new Date(t.t).toLocaleString('vi-VN')}</td><td>${esc(t.goal.slice(0,80))}${t.goal.length>80?'…':''}</td><td class="num">${t.subtasks.length}</td><td class="num">${fmtUSD(t.cost)}</td><td><button class="btn sm" data-open="${t.id}">Xem</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Chưa chạy tác vụ nào.</td></tr>';
+}
+$('#taskRows').addEventListener('click', e => {
+  const b = e.target.closest('[data-open]'); if(!b) return; const t = S.tasks.find(x=>x.id===b.dataset.open); if(!t) return;
+  TASK = {id:t.id, t:t.t, goal:t.goal, lead:t.lead, cost:t.cost, merged:t.merged, subtasks:t.subtasks.map(s=>({...s, id:uid(), done:true, prompt:'', reason:''}))};
+  $('#taskInput').value = t.goal; renderPlan(); $('#btnRun').disabled = true;
+  $('#mergeCard').hidden = false; $('#mergeDot').className = 'dot ' + t.lead; $('#mergeLead').textContent = PROVIDERS[t.lead].name; $('#mergeModel').textContent = ''; $('#mergeBody').textContent = t.merged; $('#mergeMeta').innerHTML = `<span>tổng ${fmtUSD(t.cost)}</span>`;
+  setStatus('Đang xem lại tác vụ cũ. Sửa mô tả và bấm Lập kế hoạch để chạy mới.'); window.scrollTo(0,0);
+});
+
+/* ===================== Prompt ===================== */
+let editingPrompt = null;
+function renderPrompts(){
+  $('#promptList').innerHTML = S.prompts.map(p => `<div class="prompt"><h3>${esc(p.title)}</h3><pre>${esc(p.text)}</pre>
+    <div class="acts"><button class="btn sm primary" data-use="${p.id}">Dùng</button><button class="btn sm" data-edit="${p.id}">Sửa</button><button class="btn sm danger" data-del="${p.id}">Xóa</button></div></div>`).join('')
+    || '<p class="muted">Chưa có prompt nào.</p>';
+}
+$('#promptList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.use){ const p = S.prompts.find(x=>x.id===b.dataset.use); $('#input').value = p.text; showView('chat'); $('#input').focus(); }
+  if(b.dataset.edit){ const p = S.prompts.find(x=>x.id===b.dataset.edit); editingPrompt = p.id; $('#pTitle').value = p.title; $('#pText').value = p.text; $('#promptFormTitle').textContent = 'Sửa prompt'; $('#btnCancelPrompt').hidden = false; window.scrollTo(0,0); }
+  if(b.dataset.del){ S.prompts = S.prompts.filter(x=>x.id!==b.dataset.del); save(); renderPrompts(); }
+});
+$('#btnSavePrompt').addEventListener('click', () => {
+  const title = $('#pTitle').value.trim(), text = $('#pText').value.trim(); if(!title || !text){ toast('Cần cả tên và nội dung'); return; }
+  if(editingPrompt){ const p = S.prompts.find(x=>x.id===editingPrompt); p.title = title; p.text = text; } else S.prompts.unshift({id:uid(), title, text});
+  cancelEdit(); save(); renderPrompts(); toast('Đã lưu prompt');
+});
+function cancelEdit(){ editingPrompt = null; $('#pTitle').value=''; $('#pText').value=''; $('#promptFormTitle').textContent='Thêm prompt'; $('#btnCancelPrompt').hidden = true; }
+$('#btnCancelPrompt').addEventListener('click', cancelEdit);
+$('#btnPickPrompt').addEventListener('click', () => showView('prompts'));
+
+/* ===================== Usage ===================== */
+function renderUsage(){
+  const tot = {}; for(const p of ORDER) tot[p] = {n:0,inTok:0,outTok:0,cost:0};
+  for(const u of S.usage){ const t = tot[u.p]; if(!t) continue; t.n++; t.inTok += u.inTok; t.outTok += u.outTok; t.cost += u.cost; }
+  const all = ORDER.reduce((a,p)=>a+tot[p].cost,0);
+  $('#usageTiles').innerHTML = ORDER.map(p => `<div class="tile ${p}"><div class="small muted">${PROVIDERS[p].name}</div><div class="big">${fmtUSD(tot[p].cost)}</div><div class="sub"><span>${tot[p].n} lượt</span><span>${fmtInt(tot[p].inTok)} vào</span><span>${fmtInt(tot[p].outTok)} ra</span></div></div>`).join('')
+    + `<div class="tile"><div class="small muted">Tổng cộng</div><div class="big">${fmtUSD(all)}</div><div class="sub"><span>${S.usage.length} lượt gọi</span></div></div>`;
+  // 14 ngày
+  const days = []; const now = new Date(); now.setHours(0,0,0,0);
+  for(let i=13;i>=0;i--){ const d = new Date(now); d.setDate(d.getDate()-i); days.push({key:d.toDateString(), label:(d.getDate()+'/'+(d.getMonth()+1)), c:{anthropic:0,openai:0,gemini:0}}); }
+  for(const u of S.usage){ const k = new Date(u.t).toDateString(); const d = days.find(x=>x.key===k); if(d && d.c[u.p]!==undefined) d.c[u.p]+=u.cost; }
+  const max = Math.max(0.0001, ...days.map(d => d.c.anthropic+d.c.openai+d.c.gemini));
+  $('#bars').innerHTML = days.map(d => `<div class="bar" title="${d.label}: ${fmtUSD(d.c.anthropic+d.c.openai+d.c.gemini)}"><div class="stack">${ORDER.map(p=>`<div class="seg ${p}" style="height:${(d.c[p]/max*100).toFixed(1)}%"></div>`).join('')}</div><div class="d">${d.label}</div></div>`).join('');
+  $('#usageRows').innerHTML = S.usage.slice(-50).reverse().map(u => `<tr><td class="mono small">${new Date(u.t).toLocaleString('vi-VN')}</td><td><span class="dot ${u.p}" style="display:inline-block;margin-right:6px"></span>${PROVIDERS[u.p]?.name||u.p}</td><td class="mono small">${esc(u.model)}</td><td class="num">${fmtInt(u.inTok)}</td><td class="num">${fmtInt(u.outTok)}</td><td class="num">${fmtUSD(u.cost)}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="muted">Chưa có lượt gọi nào.</td></tr>';
+}
+$('#btnClearUsage').addEventListener('click', () => { if($('#btnClearUsage').dataset.arm){ S.usage = []; save(); renderUsage(); delete $('#btnClearUsage').dataset.arm; $('#btnClearUsage').textContent='Xóa log'; } else { $('#btnClearUsage').dataset.arm='1'; $('#btnClearUsage').textContent='Bấm lần nữa để xóa'; } });
+$('#btnExportUsage').addEventListener('click', () => {
+  const rows = [['time','provider','model','input_tokens','output_tokens','cost_usd'], ...S.usage.map(u => [new Date(u.t).toISOString(), u.p, u.model, u.inTok, u.outTok, u.cost.toFixed(6)])];
+  download('ai-hub-usage.csv', rows.map(r => r.join(',')).join('\n'), 'text/csv');
+});
+function download(name, text, type){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type})); a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000); }
+
+/* ===================== Cài đặt ===================== */
+function renderSettings(){
+  $('#keyCards').innerHTML = ORDER.map(p => { const P = PROVIDERS[p]; return `<div class="card">
+    <div style="display:flex;align-items:center;gap:8px"><span class="dot ${p}"></span><h3>${P.name} <span class="muted" style="font-weight:400">· ${P.vendor}</span></h3></div>
+    <div class="field"><label for="key-${p}">API key</label><div class="keyrow"><input id="key-${p}" type="password" data-key="${p}" value="${esc(S.keys[p])}" placeholder="${P.keyHint}" autocomplete="off"><button class="btn sm" data-show="key-${p}">Hiện</button></div>
+      <span class="small muted"><a href="${P.keyUrl}" target="_blank" rel="noopener">Lấy key tại đây</a></span></div>
+    <div class="field"><label for="model-${p}">Model mặc định</label><input id="model-${p}" list="models-${p}" data-model="${p}" value="${esc(S.models[p])}"><datalist id="models-${p}">${P.models.map(m=>`<option value="${m}">`).join('')}</datalist></div>
+    <div><button class="btn sm" data-test="${p}">Kiểm tra kết nối</button> <span class="small" id="test-${p}"></span></div>
+  </div>`; }).join('');
+  renderPrices();
+}
+function renderPrices(){
+  $('#priceRows').innerHTML = Object.keys(S.pricing).map(m => `<tr><td><input class="model" data-pm="${esc(m)}" value="${esc(m)}"></td><td><input type="number" step="0.01" data-pin="${esc(m)}" value="${S.pricing[m][0]}"></td><td><input type="number" step="0.01" data-pout="${esc(m)}" value="${S.pricing[m][1]}"></td><td><button class="btn sm danger" data-pdel="${esc(m)}">Xóa</button></td></tr>`).join('');
+}
+$('#view-settings').addEventListener('input', e => {
+  const t = e.target;
+  if(t.dataset.key !== undefined){ S.keys[t.dataset.key] = t.value.trim(); save(); renderChips(); }
+  if(t.dataset.model !== undefined){ S.models[t.dataset.model] = t.value.trim(); save(); renderChips(); }
+  if(t.dataset.pin !== undefined){ S.pricing[t.dataset.pin][0] = +t.value || 0; save(); }
+  if(t.dataset.pout !== undefined){ S.pricing[t.dataset.pout][1] = +t.value || 0; save(); }
+});
+$('#view-settings').addEventListener('change', e => {
+  const t = e.target;
+  if(t.dataset.pm !== undefined){ const old = t.dataset.pm, nw = t.value.trim(); if(nw && nw !== old){ S.pricing[nw] = S.pricing[old]; delete S.pricing[old]; save(); renderPrices(); } }
+});
+$('#view-settings').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.show){ const i = document.getElementById(b.dataset.show); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? 'Hiện' : 'Ẩn'; }
+  if(b.dataset.pdel){ delete S.pricing[b.dataset.pdel]; save(); renderPrices(); }
+  if(b.id === 'btnAddPrice'){ let n = 'model-moi'; let k = 1; while(S.pricing[n]) n = 'model-moi-' + (k++); S.pricing[n] = [0,0]; save(); renderPrices(); }
+  if(b.dataset.test){ const p = b.dataset.test; const out = $('#test-' + p); out.textContent = 'Đang kiểm tra…'; out.style.color = '';
+    try { if(!S.keys[p]) throw new Error('chưa nhập key'); const u = await CALL[p](S.keys[p], S.models[p], [{role:'user',content:'Trả lời đúng một từ: OK'}], ()=>{}); out.textContent = `Kết nối tốt (${u.inTok}+${u.outTok} token)`; out.style.color = 'var(--ok)'; S.usage.push({t:Date.now(), p, model:S.models[p], inTok:u.inTok, outTok:u.outTok, cost:price(S.models[p], u.inTok, u.outTok)}); save(); }
+    catch(err){ out.textContent = 'Lỗi: ' + err.message; out.style.color = 'var(--bad)'; } }
+  if(b.id === 'btnExport'){ download('ai-hub-backup.json', JSON.stringify(S, null, 2), 'application/json'); }
+  if(b.id === 'btnWipe'){ if(b.dataset.arm){ try{ localStorage.removeItem(KEY);}catch(e){} S = load(); S.prompts = SEED_PROMPTS.slice(); save(); init(); toast('Đã xóa toàn bộ'); } else { b.dataset.arm = '1'; b.textContent = 'Bấm lần nữa để xóa hết'; } }
+});
+$('#importFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return; const r = new FileReader();
+  r.onload = () => { try { const j = JSON.parse(r.result); if(!j.keys || !j.convos) throw 0; try{ localStorage.setItem(KEY, JSON.stringify(j)); }catch(e){} S = load(); init(); toast('Đã nhập dữ liệu'); } catch(err){ toast('File không hợp lệ'); } };
+  r.readAsText(f); e.target.value = '';
+});
+
+/* ===================== Khởi động ===================== */
+function init(){
+  if(!S.convos.length) { const c = {id:uid(), title:'Hội thoại mới', created:Date.now(), turns:[]}; S.convos.push(c); S.current = c.id; }
+  if(!currentConvo()) S.current = S.convos[0].id;
+  renderChips(); renderConvos(); renderChat(); renderPrompts(); renderUsage(); renderSettings();
+  showView(S.view || 'chat');
+  const n = ORDER.filter(p=>S.keys[p]).length; $('#hint').textContent = n ? '' : 'Chưa có API key — vào Cài đặt để nhập.';
+}
+init();
+</script>
+</body>
+</html>
